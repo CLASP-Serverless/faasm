@@ -388,6 +388,60 @@ static void __faasm_write_partitioned_function_state_unlock_wrapper(
       user, func, parallelismId, version, start, end, bufferVec);
 }
 
+static int32_t __faasm_read_indiv_function_state_size_lock_wrapper(
+  wasm_exec_env_t exec_env,
+  const char* inputKeys,
+  char* lockedKeys)
+{
+    GET_USER_FUNC_PAR();
+
+    faabric::state::State& state = faabric::state::getGlobalState();
+
+    std::string inputStr(inputKeys);
+
+    // Lock first, then read size.
+    std::string delimiter = "|";
+    std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
+
+    auto size =
+      state.getIndivFuncStateSizeLock(user,
+                                      func,
+                                      parallelismId,
+                                      reinterpret_cast<uint8_t*>(lockedKeys),
+                                      inputKeysSet);
+    return size;
+}
+
+static long __faasm_read_indiv_function_state_wrapper(wasm_exec_env_t exec_env,
+                                                      char* buffer,
+                                                      int32_t bufferLen,
+                                                      char* inputKeys)
+{
+    GET_USER_FUNC_PAR();
+    
+    faabric::state::State& state = faabric::state::getGlobalState();
+    // Split input keys from string into set
+    std::string inputStr(inputKeys);
+    // Lock first, then read size.
+    std::string delimiter = "|";
+    std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
+    state.readIndivFuncState(user, func, parallelismId, buffer, bufferLen, inputKeysSet);
+    return 0;
+}
+
+static void __faasm_write_indiv_function_state_unlock_wrapper(
+  wasm_exec_env_t exec_env,
+  char* buffer,
+  int32_t bufferLen)
+{
+    GET_USER_FUNC_PAR();
+
+    faabric::state::State& state = faabric::state::getGlobalState();
+    // Split input keys from string into set
+    std::vector<uint8_t> bufferVec(buffer, buffer + bufferLen);
+    state.writeIndivFuncStateUnlock(user, func, parallelismId, bufferVec);
+}
+
 static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_read_state, "($$i)i"),
     REG_NATIVE_FUNC(__faasm_read_state_ptr, "($i)i"),
@@ -404,7 +458,9 @@ static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_read_partitioned_function_state_size_lock, "($)i"),
     REG_NATIVE_FUNC(__faasm_read_partitioned_function_state, "($i$)i"),
     REG_NATIVE_FUNC(__faasm_write_partitioned_function_state_unlock, "($i)"),
-
+    REG_NATIVE_FUNC(__faasm_read_indiv_function_state_size_lock, "($$)i"),
+    REG_NATIVE_FUNC(__faasm_read_indiv_function_state, "($i$)i"),
+    REG_NATIVE_FUNC(__faasm_write_indiv_function_state_unlock, "($i)"),
 };
 
 uint32_t getFaasmStateApi(NativeSymbol** nativeSymbols)
