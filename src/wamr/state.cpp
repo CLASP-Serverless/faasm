@@ -403,12 +403,23 @@ static int32_t __faasm_read_indiv_function_state_size_lock_wrapper(
     std::string delimiter = "|";
     std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
 
+    int acquireTimes = ExecutorContext::get()->incrementLockAcquireTimes();
+
+    SPDLOG_DEBUG("S - faasm_read_indiv_function_state_size_lock - {}/{}-{} "
+                 "inputKeys {} - {} times",
+                 user,
+                 func,
+                 parallelismId,
+                 inputKeys,
+                 acquireTimes);
+
     auto size =
       state.getIndivFuncStateSizeLock(user,
                                       func,
                                       parallelismId,
                                       reinterpret_cast<uint8_t*>(lockedKeys),
-                                      inputKeysSet);
+                                      inputKeysSet,
+                                      acquireTimes);
     return size;
 }
 
@@ -418,14 +429,15 @@ static long __faasm_read_indiv_function_state_wrapper(wasm_exec_env_t exec_env,
                                                       char* inputKeys)
 {
     GET_USER_FUNC_PAR();
-    
+
     faabric::state::State& state = faabric::state::getGlobalState();
     // Split input keys from string into set
     std::string inputStr(inputKeys);
     // Lock first, then read size.
     std::string delimiter = "|";
     std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
-    state.readIndivFuncState(user, func, parallelismId, buffer, bufferLen, inputKeysSet);
+    state.readIndivFuncState(
+      user, func, parallelismId, buffer, bufferLen, inputKeysSet);
     return 0;
 }
 
