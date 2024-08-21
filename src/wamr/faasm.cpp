@@ -250,6 +250,25 @@ static void __faasm_write_output_wrapper(wasm_exec_env_t exec_env,
     call.set_outputdata(outBuff, outLen);
 }
 
+/**
+ * Set the function output
+ */
+static void __faasm_set_output_id_wrapper(wasm_exec_env_t exec_env,
+                                          char* outBuff,
+                                          int32_t outLen,
+                                          uint32_t msgIdx)
+{
+    SPDLOG_TRACE(
+      "S - faasm_set_output {} {} : msgIdx {}", outBuff, outLen, msgIdx);
+
+    // For stream batch processing. We write output for specified Msg.
+    faabric::Message* originalCall = &faabric::executor::ExecutorContext::get()
+                                        ->getBatch()
+                                        .mutable_messages()
+                                        ->at(msgIdx);
+    originalCall->set_outputdata(outBuff, outLen);
+}
+
 static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_append_state, "(**i)"),
     REG_NATIVE_FUNC(__faasm_await_call, "(i)i"),
@@ -266,6 +285,7 @@ static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_sm_critical_local_end, "()"),
     REG_NATIVE_FUNC(__faasm_sm_reduce, "(iiii)"),
     REG_NATIVE_FUNC(__faasm_write_output, "($i)"),
+    REG_NATIVE_FUNC(__faasm_set_output_id, "($ii)"),
 };
 
 uint32_t getFaasmFunctionsApi(NativeSymbol** nativeSymbols)
