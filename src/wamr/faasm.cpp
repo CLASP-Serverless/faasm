@@ -13,6 +13,7 @@
 #include <wasm/host_interface_test.h>
 #include <wasm/migration.h>
 
+#include <chrono>
 #include <wasm_export.h>
 
 #define STREAM_BATCH -2
@@ -269,6 +270,16 @@ static void __faasm_set_output_id_wrapper(wasm_exec_env_t exec_env,
     originalCall->set_outputdata(outBuff, outLen);
 }
 
+static uint64_t __faasm_get_micros_wrapper()
+{
+    auto ts = std::chrono::time_point_cast<std::chrono::microseconds>(
+      std::chrono::system_clock::now());
+
+    // Convert the time_point to the number of microseconds since the epoch
+    uint64_t microseconds_since_epoch = ts.time_since_epoch().count();
+    return microseconds_since_epoch;
+}
+
 static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_append_state, "(**i)"),
     REG_NATIVE_FUNC(__faasm_await_call, "(i)i"),
@@ -286,6 +297,7 @@ static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_sm_reduce, "(iiii)"),
     REG_NATIVE_FUNC(__faasm_write_output, "($i)"),
     REG_NATIVE_FUNC(__faasm_set_output_id, "($ii)"),
+    REG_NATIVE_FUNC(__faasm_get_micros, "()I"),
 };
 
 uint32_t getFaasmFunctionsApi(NativeSymbol** nativeSymbols)
