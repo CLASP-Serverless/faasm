@@ -283,33 +283,6 @@ static void __faasm_function_state_unlock_wrapper(wasm_exec_env_t exec_env)
     fs->unlockMasterWrite();
 }
 
-static std::tuple<int, int, int> splitLockHint(const std::string& input)
-{
-    std::stringstream ss(input);
-    std::string part;
-    int version, start, end;
-
-    try {
-        std::getline(ss, part, '/');
-        version = std::stoi(part);
-
-        std::getline(ss, part, '/');
-        start = std::stoi(part);
-
-        std::getline(ss, part);
-        end = std::stoi(part);
-
-        return std::make_tuple(version, start, end);
-    } catch (const std::invalid_argument& e) {
-        std::cerr << "Error: One of the parts is not a valid integer."
-                  << std::endl;
-        return std::make_tuple(-1, -1, -1);
-    } catch (const std::out_of_range& e) {
-        std::cerr << "Error: One of the parts is out of range." << std::endl;
-        return std::make_tuple(-1, -1, -1);
-    }
-}
-
 // Function to split a string by a delimiter and store the elements in a set
 std::set<std::string> splitStringToSet(const std::string& str,
                                        const std::string& delimiter)
@@ -334,58 +307,6 @@ std::set<std::string> splitStringToSet(const std::string& str,
     }
 
     return resultSet;
-}
-
-static int32_t __faasm_read_partitioned_function_state_size_lock_wrapper(
-  wasm_exec_env_t exec_env,
-  char* inputKeys)
-{
-    GET_USER_FUNC_PAR_LOCK();
-    auto [version, start, end] = splitLockHint(lockHint);
-
-    faabric::state::State& state = faabric::state::getGlobalState();
-    // Split input keys from string into set
-    std::string inputStr(inputKeys);
-
-    // Lock first, then read size.
-    std::string delimiter = "|";
-    std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
-    int32_t stateSize = state.getParFuncStateSizeLock(
-      user, func, parallelismId, version, start, end, inputKeysSet);
-    return stateSize;
-}
-
-static int32_t __faasm_read_partitioned_function_state_wrapper(
-  wasm_exec_env_t exec_env,
-  char* buffer,
-  int32_t bufferLen,
-  char* inputKeys)
-{
-    GET_USER_FUNC_PAR();
-
-    faabric::state::State& state = faabric::state::getGlobalState();
-    // Split input keys from string into set
-    std::string inputStr(inputKeys);
-
-    // Lock first, then read size.
-    std::string delimiter = "|";
-    std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
-    state.readParFuncState(user, func, parallelismId, buffer, inputKeysSet);
-    return 0;
-}
-
-static void __faasm_write_partitioned_function_state_unlock_wrapper(
-  wasm_exec_env_t exec_env,
-  char* buffer,
-  int32_t bufferLen)
-{
-    GET_USER_FUNC_PAR_LOCK();
-    auto [version, start, end] = splitLockHint(lockHint);
-
-    faabric::state::State& state = faabric::state::getGlobalState();
-    std::vector<uint8_t> bufferVec(buffer, buffer + bufferLen);
-    state.writeParFuncStateUnlock(
-      user, func, parallelismId, version, start, end, bufferVec);
 }
 
 static int32_t __faasm_read_indiv_function_state_size_lock_wrapper(
@@ -467,9 +388,9 @@ static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_write_function_state_unlock, "($i)"),
     REG_NATIVE_FUNC(__faasm_function_state_lock, "()i"),
     REG_NATIVE_FUNC(__faasm_function_state_unlock, "()"),
-    REG_NATIVE_FUNC(__faasm_read_partitioned_function_state_size_lock, "($)i"),
-    REG_NATIVE_FUNC(__faasm_read_partitioned_function_state, "($i$)i"),
-    REG_NATIVE_FUNC(__faasm_write_partitioned_function_state_unlock, "($i)"),
+    // REG_NATIVE_FUNC(__faasm_read_partitioned_function_state_size_lock, "($)i"),
+    // REG_NATIVE_FUNC(__faasm_read_partitioned_function_state, "($i$)i"),
+    // REG_NATIVE_FUNC(__faasm_write_partitioned_function_state_unlock, "($i)"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state_size_lock, "($$)i"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state, "($i$)i"),
     REG_NATIVE_FUNC(__faasm_write_indiv_function_state_unlock, "($i)"),
