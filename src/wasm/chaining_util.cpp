@@ -133,16 +133,18 @@ int makeChainedCallBatch()
     std::vector<std::string> chainedFunctionName = context->chainedFunctionName;
     std::vector<int> chainedMsgId = context->chainedMsgId;
     std::vector<std::vector<uint8_t>> chainedInput = context->chainedInput;
+    // The size of chainedFunctionName, chainedMsgId and chainedInput should be
+    // the same
+    if (chainedFunctionName.size() == 0) {
+        return 0;
+    }
 
     // Prepare the batch execute request
-    // Since each executor can execute the same function with different
-    // appid, msgid. They can also chained call different functions.
-    // We have to prepare a map to store the request for each function.
-    // For each function, we also have to prepare for each appid. Since
-    // currently, planner only supports batchcall with the same AppId.
-    std::map<std::string,
-             std::map<int, std::shared_ptr<faabric::BatchExecuteRequest>>>
-      reqsMap;
+    // We combine all the messages (different functions) into a single batch
+    // since the scheduling doesn't care about the batch function name
+
+    auto req = faabric::util::batchExecFactory("FAASM", "Func", 0);
+
     // Prepare each message
     for (size_t i = 0; i < chainedMsgId.size(); i++) {
         std::string functionName = chainedFunctionName.at(i);
@@ -161,27 +163,10 @@ int makeChainedCallBatch()
         assert(!user.empty());
         assert(!functionName.empty());
 
-        // Spawn a child batch exec (parent-child expressed by having the same
-        // app id)
-        std::shared_ptr<faabric::BatchExecuteRequest> req;
-        faabric::Message* msgPtr = nullptr;
-        // If the reqsMap contains the function name and contains the appid
-        if (reqsMap.contains(functionName) &&
-            reqsMap[functionName].contains(appId)) {
-            req = reqsMap[functionName][appId];
-            *req->add_messages() =
-              faabric::util::messageFactory(user, functionName);
-            msgPtr = &req->mutable_messages()->at(req->messages_size() - 1);
-            msgPtr->set_appid(appId);
-        } else {
-            req = faabric::util::batchExecFactory(
-              originalCall->user(), functionName, 1);
-            faabric::util::updateBatchExecAppId(req, originalCall->appid());
-            reqsMap[functionName][appId] = req;
-            msgPtr = &req->mutable_messages()->at(0);
-        }
-
-        faabric::Message& msg = *msgPtr;
+        // Create the message
+        faabric::Message& msg = *req->add_messages();
+        msg = faabric::util::messageFactory(user, functionName);
+        msg.set_appid(appId);
         // Propagate chaining-specific fields
         msg.set_inputdata(inputData.data(), inputData.size());
         msg.set_funcptr(0);
@@ -212,26 +197,19 @@ int makeChainedCallBatch()
         // functions to avoid data races
         faabric::executor::ExecutorContext::get()
           ->getExecutor()
-          ->addChainedMessage(req->messages(req->messages_size() - 1));
+          ->addChainedMessage(msg);
 
         if (originalCall->recordexecgraph()) {
             faabric::util::logChainedFunction(*originalCall, msg);
         }
     }
 
-    auto& plannerCli = faabric::planner::getPlannerClient();
-    // call all the requests in reqsMap
-    for (auto& [functionName, reqs] : reqsMap) {
-        for (auto& [appId, req] : reqs) {
-            SPDLOG_DEBUG("Chaining call batch for function: {}, appid: {}, "
-                         "message size: {}",
-                         functionName,
-                         appId,
-                         req->messages_size());
-            plannerCli.enqueueFunctions(req);
-            // plannerCli.callFunctions(req);
-        }
+    if (req->messages_size() > 0) {
+        auto& plannerCli = faabric::planner::getPlannerClient();
+        SPDLOG_DEBUG("Chaining call batch size: {}", req->messages_size());
+        plannerCli.enqueueFunctions(req);
     }
+
     // clear the context
     context->chainedFunctionName.clear();
     context->chainedMsgId.clear();
