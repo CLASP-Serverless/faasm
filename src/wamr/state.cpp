@@ -261,28 +261,6 @@ static void __faasm_write_function_state_unlock_wrapper(
     // TODO - Remove the pointer
 }
 
-static int32_t __faasm_function_state_lock_wrapper(wasm_exec_env_t exec_env)
-{
-    GET_USER_FUNC_PAR();
-    SPDLOG_DEBUG("S - faasm_function_state_lock_wrapper - {}/{}-{}",
-                 user,
-                 func,
-                 parallelismId);
-    auto fs = faabric::state::getGlobalState().getFS(user, func, parallelismId);
-    return fs->lockMasterWrite();
-}
-
-static void __faasm_function_state_unlock_wrapper(wasm_exec_env_t exec_env)
-{
-    GET_USER_FUNC_PAR();
-    SPDLOG_DEBUG("S - faasm_function_state_unlock_wrapper - {}/{}-{}",
-                 user,
-                 func,
-                 parallelismId);
-    auto fs = faabric::state::getGlobalState().getFS(user, func, parallelismId);
-    fs->unlockMasterWrite();
-}
-
 // Function to split a string by a delimiter and store the elements in a set
 std::set<std::string> splitStringToSet(const std::string& str,
                                        const std::string& delimiter)
@@ -386,11 +364,6 @@ static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_read_function_state_ptr_lock, "()i"),
     REG_NATIVE_FUNC(__faasm_write_function_state, "($i)"),
     REG_NATIVE_FUNC(__faasm_write_function_state_unlock, "($i)"),
-    REG_NATIVE_FUNC(__faasm_function_state_lock, "()i"),
-    REG_NATIVE_FUNC(__faasm_function_state_unlock, "()"),
-    // REG_NATIVE_FUNC(__faasm_read_partitioned_function_state_size_lock, "($)i"),
-    // REG_NATIVE_FUNC(__faasm_read_partitioned_function_state, "($i$)i"),
-    // REG_NATIVE_FUNC(__faasm_write_partitioned_function_state_unlock, "($i)"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state_size_lock, "($$)i"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state, "($i$)i"),
     REG_NATIVE_FUNC(__faasm_write_indiv_function_state_unlock, "($i)"),

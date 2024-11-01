@@ -20,7 +20,7 @@ spec:
             - control
   containers:
     - name: planner
-      image: tqiunimelb/planner-stream:0.0.9
+      image: tqiunimelb/planner-stream:0.0.10
       ports:
         - containerPort: 8081
       env:
@@ -28,6 +28,10 @@ spec:
           value: "info"
         - name: PLANNER_PORT
           value: "8081"
+        - name: PLANNER_HTTP_SERVER_THREADS
+          value: "60"
+        - name: ENDPOINT_NUM_THREADS
+          value: "25"
 
 ---
 
