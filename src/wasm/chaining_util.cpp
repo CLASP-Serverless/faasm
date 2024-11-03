@@ -1,6 +1,7 @@
 #include <conf/FaasmConfig.h>
 #include <faabric/executor/ExecutorContext.h>
 #include <faabric/planner/PlannerClient.h>
+#include <faabric/scheduler/Scheduler.h>
 #include <faabric/util/ExecGraph.h>
 #include <faabric/util/batch.h>
 #include <faabric/util/bytes.h>
@@ -143,7 +144,7 @@ int makeChainedCallBatch()
     // We combine all the messages (different functions) into a single batch
     // since the scheduling doesn't care about the batch function name
 
-    auto req = faabric::util::batchExecFactory("FAASM", "Func", 0);
+    std::vector<std::unique_ptr<faabric::Message>> chainedMessages;
 
     // Prepare each message
     for (size_t i = 0; i < chainedMsgId.size(); i++) {
@@ -164,8 +165,8 @@ int makeChainedCallBatch()
         assert(!functionName.empty());
 
         // Create the message
-        faabric::Message& msg = *req->add_messages();
-        msg = faabric::util::messageFactory(user, functionName);
+        faabric::Message msg =
+          faabric::util::messageFactory(user, functionName);
         msg.set_appid(appId);
         // Propagate chaining-specific fields
         msg.set_inputdata(inputData.data(), inputData.size());
@@ -202,18 +203,19 @@ int makeChainedCallBatch()
         if (originalCall->recordexecgraph()) {
             faabric::util::logChainedFunction(*originalCall, msg);
         }
-    }
 
-    if (req->messages_size() > 0) {
-        auto& plannerCli = faabric::planner::getPlannerClient();
-        SPDLOG_DEBUG("Chaining call batch size: {}", req->messages_size());
-        plannerCli.enqueueFunctions(req);
+        chainedMessages.emplace_back(std::make_unique<faabric::Message>(msg));
     }
 
     // clear the context
     context->chainedFunctionName.clear();
     context->chainedMsgId.clear();
     context->chainedInput.clear();
+
+    if (chainedMessages.size() > 0) {
+        faabric::scheduler::getScheduler().enqueueChainedCalls(
+          std::move(chainedMessages));
+    }
 
     return 0;
 }
