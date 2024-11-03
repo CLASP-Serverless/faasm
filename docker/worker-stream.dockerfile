@@ -1,5 +1,5 @@
 ARG FAASM_VERSION
-FROM tqiunimelb/base-stream:0.0.8
+FROM tqiunimelb/base-stream:0.0.9
 
 # Build the worker binary
 RUN cd /usr/local/code/faasm \
