@@ -29,7 +29,7 @@ spec:
         - name: PLANNER_PORT
           value: "8081"
         - name: PLANNER_HTTP_SERVER_THREADS
-          value: "60"
+          value: "20"
         - name: ENDPOINT_NUM_THREADS
           value: "25"
 
