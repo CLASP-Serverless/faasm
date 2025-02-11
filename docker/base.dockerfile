@@ -1,8 +1,8 @@
 # Stage to extract Python runtime files
-FROM faasm.azurecr.io/cpython:0.2.5 as python
+FROM tqiunimelb/cpython:0.0.1 as python
 
 # Note - we don't often rebuild cpp-root so this dep may be behind
-FROM faasm.azurecr.io/cpp-root:0.22.0
+FROM tqiunimelb/cpp-root:0.0.1
 ARG FAASM_VERSION
 
 # Flag to say we're in a container
@@ -19,7 +19,7 @@ SHELL ["/bin/bash", "-c"]
 RUN rm -rf /usr/local/code/faasm \
     && git clone \
         -b v${FAASM_VERSION} \
-        https://github.com/faasm/faasm \
+        https://github.com/ScalaSSC/faasm \
         /usr/local/code/faasm \
     && cd /usr/local/code/faasm \
     && git submodule update --init \

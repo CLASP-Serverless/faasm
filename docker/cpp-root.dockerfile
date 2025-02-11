@@ -1,4 +1,4 @@
-FROM faasm.azurecr.io/faabric-base:0.15.0
+FROM tqiunimelb/faabric-base:0.0.1
 
 # Install Faasm-specific APT dependencies
 RUN apt update \
