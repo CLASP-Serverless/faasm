@@ -54,6 +54,9 @@ int makeChainedCall(const std::string& functionName,
         context->chainedFunctionName.push_back(functionName);
         context->chainedMsgId.push_back(msgIdx);
         context->chainedInput.push_back(inputData);
+        // We record the number of chained calls messages in original call
+        originalCall = &context->getBatch().mutable_messages()->at(msgIdx);
+        originalCall->set_chainedmsgnum(originalCall->chainedmsgnum() + 1);
         return 0;
     } else {
         originalCall = &faabric::executor::ExecutorContext::get()->getMsg();

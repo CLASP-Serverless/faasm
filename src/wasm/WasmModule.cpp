@@ -371,44 +371,11 @@ uint32_t WasmModule::mapSharedFuncStateMemory(
   long offset,
   uint32_t length)
 {
-    // See if we already have this segment mapped into memory
-    std::string segmentKey =
-      fs->user + "_" + fs->function + "_" + std::to_string(fs->parallelismId) +
-      "__" + std::to_string(offset) + "__" + std::to_string(length);
-    if (sharedMemWasmPtrs.count(segmentKey) == 0) {
-        // Lock and double check
-        faabric::util::FullLock lock(sharedMemWasmPtrsMutex);
-
-        if (sharedMemWasmPtrs.count(segmentKey) == 0) {
-            // Page-align the chunk
-            faabric::util::AlignedChunk chunk =
-              faabric::util::getPageAlignedChunk(offset, length);
-
-            // Create the wasm memory region and work out the offset to the
-            // start of the desired chunk in this region (this will be zero
-            // if the offset is already zero, or if the offset is
-            // page-aligned already). We need to round the allocation up to
-            // a wasm page boundary
-            uint32_t allocSize = roundUpToWasmPageAligned(chunk.nBytesLength);
-            uint32_t wasmBasePtr = this->growMemory(allocSize);
-            uint32_t wasmOffsetPtr = wasmBasePtr + chunk.offsetRemainder;
-
-            // Map the shared memory
-            uint8_t* wasmMemoryRegionPtr = wasmPointerToNative(wasmBasePtr);
-            fs->mapSharedMemory(static_cast<void*>(wasmMemoryRegionPtr),
-                                chunk.nPagesOffset,
-                                chunk.nPagesLength);
-
-            // Cache the wasm pointer
-            sharedMemWasmPtrs[segmentKey] = wasmOffsetPtr;
-        }
-    }
-
-    // Return the wasm pointer
-    {
-        faabric::util::SharedLock lock(sharedMemWasmPtrsMutex);
-        return sharedMemWasmPtrs[segmentKey];
-    }
+    SPDLOG_ERROR("S - mapSharedFuncStateMemory - {}-{}, it is not implemented",
+                 offset,
+                 length);
+    throw std::runtime_error("mapSharedFuncStateMemory is not implemented");
+    return 0;
 }
 
 uint32_t WasmModule::getCurrentBrk()
@@ -521,7 +488,7 @@ int32_t WasmModule::executeBatchTask(
 
     // Modules must have provisioned their own thread stacks
     assert(!threadStacks.empty());
- 
+
     // Ignore stacks and guard pages in snapshot if present
     if (!firstMsg.snapshotkey().empty()) {
         ignoreThreadStacksInSnapshot(firstMsg.snapshotkey());
@@ -535,10 +502,10 @@ int32_t WasmModule::executeBatchTask(
         req->mutable_messages()->at(i).set_starttimestamp(startTime);
         req->mutable_messages()->at(i).set_workerexecutestart(startMicros);
     }
-       
+
     SPDLOG_TRACE("Executing {} as batch standard function", funcStr);
     returnValue = executeBatchFunction(*req);
-    
+
     // Set result and timestamp
     long endTime = faabric::util::getGlobalClock().epochMillis();
     auto endMicros = faabric::util::getGlobalClock().epochMicros();
@@ -546,11 +513,10 @@ int32_t WasmModule::executeBatchTask(
         req->mutable_messages(i)->set_finishtimestamp(endTime);
         req->mutable_messages(i)->set_workerexecuteend(endMicros);
         req->mutable_messages(i)->set_returnvalue(returnValue);
-        if (returnValue != 0){
+        if (returnValue != 0) {
             req->mutable_messages(i)->set_outputdata(
-                fmt::format("Call failed (return value={})", returnValue));
+              fmt::format("Call failed (return value={})", returnValue));
         }
-        
     }
 
     // Add captured stdout if necessary
@@ -559,7 +525,8 @@ int32_t WasmModule::executeBatchTask(
         std::string moduleStdout = getCapturedStdout();
         if (!moduleStdout.empty()) {
             for (int i = 0; i < req->messages_size(); i++) {
-                std::string newOutput = moduleStdout + "\n" +  req->messages(i).outputdata();
+                std::string newOutput =
+                  moduleStdout + "\n" + req->messages(i).outputdata();
                 req->mutable_messages(i)->set_outputdata(newOutput);
             }
             clearCapturedStdout();
