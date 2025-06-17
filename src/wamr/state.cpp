@@ -289,6 +289,42 @@ static void __faasm_write_indiv_function_state_unlock_wrapper(
     state.writeIndivFuncStateUnlock(user, func, parallelismId, bufferVec);
 }
 
+static int32_t __faasm_read_persistent_state_wrapper(wasm_exec_env_t exec_env,
+                                                     char* key)
+{
+    std::string keyData(key);
+    SPDLOG_DEBUG("S - faasm_read_persistent_state - key {}", keyData);
+
+    std::string value =
+      faabric::state::getGlobalState().readPersistentState(keyData);
+    uint32_t str_len = value.size() + 1;
+
+    WASMModuleInstanceCommon* module_inst =
+      wasm_runtime_get_module_inst(exec_env);
+    void* native_ptr = nullptr;
+    uint32_t app_offset =
+      wasm_runtime_module_malloc(module_inst, str_len, &native_ptr);
+    if (app_offset == 0) {
+        SPDLOG_ERROR("Failed to allocate memory for persistent state");
+        return 0;
+    }
+
+    memcpy(native_ptr, value.c_str(), str_len);
+    return app_offset;
+}
+
+static void __faasm_write_persistent_state_wrapper(wasm_exec_env_t exec_env,
+                                                   char* key,
+                                                   char* value)
+{
+    std::string keyData(key);
+    std::string valueData(value);
+    SPDLOG_DEBUG("S - faasm_write_persistent_state - key {} and value {}",
+                 keyData,
+                 valueData);
+    faabric::state::getGlobalState().writePersistentState(keyData, valueData);
+}
+
 static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_read_state, "($$i)i"),
     REG_NATIVE_FUNC(__faasm_read_state_ptr, "($i)i"),
@@ -302,6 +338,9 @@ static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state_size_lock, "($$)i"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state, "($i$)i"),
     REG_NATIVE_FUNC(__faasm_write_indiv_function_state_unlock, "($i)"),
+    // The following functions are designed for Persistent State
+    REG_NATIVE_FUNC(__faasm_read_persistent_state, "($)i"),
+    REG_NATIVE_FUNC(__faasm_write_persistent_state, "($$)"),
 };
 
 uint32_t getFaasmStateApi(NativeSymbol** nativeSymbols)
