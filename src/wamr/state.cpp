@@ -2,6 +2,8 @@
 #include <faabric/planner/PlannerClient.h>
 #include <faabric/proto/faabric.pb.h>
 #include <faabric/util/logging.h>
+#include <faabric/util/serialization.h>
+
 #include <wamr/WAMRWasmModule.h>
 #include <wamr/native.h>
 #include <wasm/WasmExecutionContext.h>
@@ -31,6 +33,8 @@ using namespace faabric::executor;
     }
 
 namespace wasm {
+constexpr uint64_t MAX_PAYLOAD = uint64_t(UINT32_MAX) - sizeof(uint32_t);
+
 /**
  * Read state for the given key into the buffer provided.
  *
@@ -276,6 +280,55 @@ static long __faasm_read_indiv_function_state_wrapper(wasm_exec_env_t exec_env,
     return 0;
 }
 
+static int32_t __faasm_read_indiv_function_state_ptr_wrapper(
+  wasm_exec_env_t exec_env,
+  const char* inputKeys)
+{
+    GET_USER_FUNC_PAR();
+    auto& state = faabric::state::getGlobalState();
+
+    std::set<std::string> keys = splitStringToSet(std::string(inputKeys), "|");
+
+    auto lockedStateMap =
+      state.readIndivFuncStateLock(user, func, parallelismId, keys);
+
+    // serialize
+    auto serializedMap = faabric::util::serializeFuncState(lockedStateMap);
+    uint64_t dataLen64 = serializedMap.size();
+
+    if (dataLen64 > MAX_PAYLOAD) {
+        SPDLOG_ERROR(
+          "Cannot serialize indiv func state: {} bytes exceeds max {}",
+          dataLen64,
+          MAX_PAYLOAD);
+        throw std::length_error("Serialized state exceeds 4 GB limit");
+    }
+
+    uint32_t dataLen = static_cast<uint32_t>(dataLen64);
+    uint32_t totalLen = dataLen + sizeof(uint32_t);
+
+    // allocate
+    WASMModuleInstanceCommon* module_inst =
+      wasm_runtime_get_module_inst(exec_env);
+    void* native_ptr = nullptr;
+    uint32_t app_offset =
+      wasm_runtime_module_malloc(module_inst, totalLen, &native_ptr);
+    if (app_offset == 0) {
+        SPDLOG_ERROR("WASM malloc failed for {} bytes", totalLen);
+        throw std::runtime_error("WASM memory allocation failed");
+    }
+
+    // write length prefix + payload…
+    uint8_t* p = static_cast<uint8_t*>(native_ptr);
+    p[0] = uint8_t(dataLen >> 24);
+    p[1] = uint8_t(dataLen >> 16);
+    p[2] = uint8_t(dataLen >> 8);
+    p[3] = uint8_t(dataLen);
+    memcpy(p + 4, serializedMap.data(), dataLen);
+
+    return app_offset;
+}
+
 static void __faasm_write_indiv_function_state_unlock_wrapper(
   wasm_exec_env_t exec_env,
   char* buffer,
@@ -337,6 +390,7 @@ static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_write_function_state_unlock, "($i)"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state_size_lock, "($$)i"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state, "($i$)i"),
+    REG_NATIVE_FUNC(__faasm_read_indiv_function_state_ptr,"($)i"),
     REG_NATIVE_FUNC(__faasm_write_indiv_function_state_unlock, "($i)"),
     // The following functions are designed for Persistent State
     REG_NATIVE_FUNC(__faasm_read_persistent_state, "($)i"),
