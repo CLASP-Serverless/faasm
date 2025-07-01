@@ -166,6 +166,63 @@ static int32_t __faasm_read_function_state_wrapper(wasm_exec_env_t exec_env,
     return size;
 }
 
+static int32_t __faasm_read_function_state_lock_ptr_wrapper(
+  wasm_exec_env_t exec_env,
+  int32_t lock)
+{
+    GET_USER_FUNC_PAR();
+    SPDLOG_DEBUG("S - read_function_state_lock_ptr - {}/{}-{} (lock={})",
+                 user,
+                 func,
+                 parallelismId,
+                 lock);
+    // If the size is 0, it means the function state is not initialized.
+
+    bool dataLock = lock == 1;
+
+    auto stateVec = faabric::state::getGlobalState().readFuncStateLock(
+      user, func, parallelismId, dataLock);
+
+    uint64_t dataLen64 = stateVec.size();
+    if (dataLen64 == 0) {
+        // no state → return 0
+        return 0;
+    }
+    if (dataLen64 > MAX_PAYLOAD) {
+        SPDLOG_ERROR(
+          "Function state {} bytes exceeds max {}", dataLen64, MAX_PAYLOAD);
+        throw std::length_error("Function state exceeds payload limit");
+    }
+
+    // total = 4 bytes length prefix + payload
+    uint32_t dataLen = static_cast<uint32_t>(dataLen64);
+    uint32_t totalLen = dataLen + sizeof(uint32_t);
+
+    // allocate in Wasm linear memory
+    WASMModuleInstanceCommon* module_inst =
+      wasm_runtime_get_module_inst(exec_env);
+    void* native_ptr = nullptr;
+    uint32_t app_offset =
+      wasm_runtime_module_malloc(module_inst, totalLen, &native_ptr);
+    if (app_offset == 0) {
+        SPDLOG_ERROR("WASM malloc failed for {} bytes", totalLen);
+        throw std::runtime_error("WASM memory allocation failed");
+    }
+
+    // write big-endian length prefix
+    uint8_t* p = static_cast<uint8_t*>(native_ptr);
+    p[0] = uint8_t(dataLen >> 24);
+    p[1] = uint8_t(dataLen >> 16);
+    p[2] = uint8_t(dataLen >> 8);
+    p[3] = uint8_t(dataLen);
+
+    // copy the payload immediately after
+    memcpy(p + 4, stateVec.data(), dataLen);
+
+    // return the module‐pointer (offset) back to wasm
+    return app_offset;
+}
+
 /**
  * Writes the given data buffer to the function state referenced by the given
  * key.
@@ -386,11 +443,12 @@ static NativeSymbol ns[] = {
     // The following functions are designed for Function State
     REG_NATIVE_FUNC(__faasm_read_function_state_size, "(i)i"),
     REG_NATIVE_FUNC(__faasm_read_function_state, "($i)i"),
+    REG_NATIVE_FUNC(__faasm_read_function_state_lock_ptr, "(i)i"),
     REG_NATIVE_FUNC(__faasm_write_function_state, "($i)"),
     REG_NATIVE_FUNC(__faasm_write_function_state_unlock, "($i)"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state_size_lock, "($$)i"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state, "($i$)i"),
-    REG_NATIVE_FUNC(__faasm_read_indiv_function_state_ptr,"($)i"),
+    REG_NATIVE_FUNC(__faasm_read_indiv_function_state_ptr, "($)i"),
     REG_NATIVE_FUNC(__faasm_write_indiv_function_state_unlock, "($i)"),
     // The following functions are designed for Persistent State
     REG_NATIVE_FUNC(__faasm_read_persistent_state, "($)i"),
