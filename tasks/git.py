@@ -6,6 +6,7 @@ from os.path import join
 from subprocess import run, PIPE, STDOUT
 from tasks.util.env import PROJ_ROOT
 from tasks.util.version import get_version
+import re
 
 REPO_NAME = "faasm/faasm"
 
@@ -332,3 +333,149 @@ def check_submodule_branch(ctx):
                 )
             )
             raise RuntimeError("Submodule pointing to dangling commit")
+
+def update_file_content(file_path, pattern, replacement):
+    """
+    A helper function to read a file, replace content based on a regex pattern,
+    and write the content back.
+
+    Args:
+        file_path (str): The path to the file to modify.
+        pattern (str): The regex pattern to search for.
+        replacement (str): The string to replace the pattern with.
+    """
+    try:
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+
+        new_lines = []
+        updated = False
+        for line in lines:
+            # Perform substitution. subn returns a tuple (new_string, number_of_subs_made)
+            new_line, num_subs = re.subn(pattern, replacement, line)
+            if num_subs > 0:
+                updated = True
+            new_lines.append(new_line)
+
+        if not updated:
+            print(f" Warning: Pattern '{pattern}' not found in {file_path}. File not changed.")
+            return
+
+        with open(file_path, 'w') as f:
+            f.writelines(new_lines)
+
+        print(f"Successfully updated {file_path}")
+
+    except FileNotFoundError:
+        print(f"Error: File not found at {file_path}. Skipping update.")
+    except Exception as e:
+        print(f"An error occurred while updating {file_path}: {e}")
+
+
+@task
+def bump_up(ctx, part, version):
+    """
+    Bumps the version for a specific component of the project.
+
+    Example usage:
+        invoke bump_up --part=planner --version=1.2.3
+    """
+    print(f" Starting version bump for '{part}' to version '{version}'...")
+
+    if part == "planner":
+        # --- 1. Update ./faabric/.env ---
+        # Looks for lines starting with FAABRIC_VERSION= and replaces the value.
+        update_file_content(
+            './faabric/.env',
+            r'^(FAABRIC_VERSION=).*$',
+            f'\\g<1>{version}'
+        )
+
+        # --- 2. Update ./.env ---
+        # Update FAABRIC_VERSION
+        update_file_content(
+            './.env',
+            r'^(FAABRIC_VERSION=).*$',
+            f'\\g<1>{version}'
+        )
+        # Update FAABRIC_PLANNER_IMAGE
+        update_file_content(
+            './.env',
+            r'^(FAABRIC_PLANNER_IMAGE=).*$',
+            f'\\g<1>tqiunimelb/planner:{version}'
+        )
+
+        # --- 3. Update ./deploy/k8s-common/planner.yml ---
+        # Looks for 'image: tqiunimelb/planner:' and replaces the tag.
+        update_file_content(
+            './deploy/k8s-common/planner.yml',
+            r'(image:\s*tqiunimelb/planner:).*$',
+            f'\\g<1>{version}'
+        )
+
+        print(f"\n Planner version bump to {version} complete.")
+
+    elif part == "worker":
+        # --- 1. Update ./.env ---
+        update_file_content(
+            './.env',
+            r'^(FAASM_VERSION=).*$',
+            f'\\g<1>{version}'
+        )
+        update_file_content(
+            './.env',
+            r'^(FAASM_WORKER_IMAGE=).*$',
+            f'\\g<1>tqiunimelb/worker:{version}'
+        )
+        update_file_content(
+            './.env',
+            r'^(FAASM_BASE_IMAGE=).*$',
+            f'\\g<1>tqiunimelb/base:{version}'
+        )
+
+        # --- 2. Update ./deploy/k8s-common/worker.yml ---
+        update_file_content(
+            './deploy/k8s-wamr/worker.yml',
+            r'(image:\s*tqiunimelb/worker:).*$',
+            f'\\g<1>{version}'
+        )
+
+        print(f"\n Worker version bump to {version} complete.")
+
+    else:
+        print(f" Unknown part: '{part}'. No versions were bumped.")
+        print("    Available parts: 'planner'")
+
+@task
+def tag_up(ctx, planner_version, worker_version):
+    """
+    Commits, tags, and pushes version bumps for planner and worker.
+
+    Example usage:
+        invoke tag_up --planner-version=1.2.3 --worker-version=4.5.6
+    """
+    print("\nProcessing faabric (planner)...")
+    with ctx.cd('./faabric'):
+        ctx.run('git add .env')
+        ctx.run(f'git commit -m "bump(faabric): bump planner to v{planner_version}"')
+        ctx.run('git push')
+        ctx.run(f'git tag v{planner_version}')
+        ctx.run(f'git push origin v{planner_version}')
+    print("Faabric (planner) tagged and pushed successfully.")
+
+    # --- 2. Git operations for faasm/worker ---
+    print("\nProcessing faasm (worker)...")
+    files_to_add = [
+        '.env',
+        'deploy/k8s-common/planner.yml',
+        'deploy/k8s-wamr/worker.yml',
+        'faabric'
+    ]
+    ctx.run(f'git add {" ".join(files_to_add)}')
+    ctx.run(f'git commit -m "bump(faasm): bump worker to v{worker_version}"')
+    ctx.run('git push')
+    ctx.run(f'git tag v{worker_version}')
+    ctx.run(f'git push origin v{worker_version}')
+    print("Faasm (worker) tagged and pushed successfully.")
+
+    print("\nAll version tagging operations complete.")
