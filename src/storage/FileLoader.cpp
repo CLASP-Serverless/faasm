@@ -356,6 +356,16 @@ std::vector<uint8_t> FileLoader::loadFunctionWamrAotFile(
     return loadFileBytes(key, localCachePath);
 }
 
+void FileLoader::invalidateFunctionAotFile(const faabric::Message& msg)
+{
+    const std::string localCachePath = getFunctionAotFile(msg);
+
+    if (useLocalFsCache && std::filesystem::exists(localCachePath)) {
+        SPDLOG_DEBUG("Invalidating AOT cache file: {}", localCachePath);
+        std::filesystem::remove(localCachePath);
+    }
+}
+
 std::vector<uint8_t> FileLoader::loadFunctionWamrAotHash(
   const faabric::Message& msg)
 {

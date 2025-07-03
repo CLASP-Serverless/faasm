@@ -59,6 +59,8 @@ class FileLoader
 
     std::vector<uint8_t> loadFunctionWamrAotFile(const faabric::Message& msg);
 
+    void invalidateFunctionAotFile(const faabric::Message& msg);
+
     std::vector<uint8_t> loadFunctionWamrAotHash(const faabric::Message& msg);
 
     void uploadFunctionWamrAotFile(const faabric::Message& msg,

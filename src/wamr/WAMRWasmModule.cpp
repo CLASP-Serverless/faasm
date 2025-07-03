@@ -168,18 +168,64 @@ void WAMRWasmModule::doBindToFunction(faabric::Message& msg, bool cache)
 
     // Load the wasm file
     storage::FileLoader& functionLoader = storage::getFileLoader();
-    wasmBytes = functionLoader.loadFunctionWamrAotFile(msg);
+    // wasmBytes = functionLoader.loadFunctionWamrAotFile(msg);
 
-    {
-        faabric::util::UniqueLock lock(wamrGlobalsMutex);
-        SPDLOG_TRACE("WAMR loading {} wasm bytes\n", wasmBytes.size());
-        wasmModule = wasm_runtime_load(
-          wasmBytes.data(), wasmBytes.size(), errorBuffer, ERROR_BUFFER_SIZE);
+    // {
+    //     faabric::util::UniqueLock lock(wamrGlobalsMutex);
+    //     SPDLOG_TRACE("WAMR loading {} wasm bytes\n", wasmBytes.size());
+    //     wasmModule = wasm_runtime_load(
+    //       wasmBytes.data(), wasmBytes.size(), errorBuffer,
+    //       ERROR_BUFFER_SIZE);
 
-        if (wasmModule == nullptr) {
+    //     if (wasmModule == nullptr) {
+    //         std::string errorMsg = std::string(errorBuffer);
+    //         SPDLOG_ERROR("Failed to load WAMR module: \n{}", errorMsg);
+    //         throw std::runtime_error("Failed to load WAMR module");
+    //     }
+    // }
+
+    for (int i = 0; i < 2; ++i) {
+        // On the second attempt (i.e., i > 0), we first delete the local
+        // file to force a re-download from S3.
+        if (i > 0) {
+            functionLoader.invalidateFunctionAotFile(msg);
+        }
+
+        // Load the wasm file bytes (from cache or S3)
+        wasmBytes = functionLoader.loadFunctionWamrAotFile(msg);
+
+        {
+            faabric::util::UniqueLock lock(wamrGlobalsMutex);
+            SPDLOG_TRACE("WAMR loading {} wasm bytes (attempt {}/2)",
+                         wasmBytes.size(),
+                         i + 1);
+            wasmModule = wasm_runtime_load(wasmBytes.data(),
+                                           wasmBytes.size(),
+                                           errorBuffer,
+                                           ERROR_BUFFER_SIZE);
+
+            // If the module loaded successfully, break the retry loop.
+            if (wasmModule != nullptr) {
+                break;
+            }
+
+            // --- Loading failed, check the error ---
             std::string errorMsg = std::string(errorBuffer);
-            SPDLOG_ERROR("Failed to load WAMR module: \n{}", errorMsg);
-            throw std::runtime_error("Failed to load WAMR module");
+
+            // Check if it's the specific "unexpect end" error and if this is
+            // the first attempt.
+            if (i == 0 && errorMsg.find("unexpect") != std::string::npos) {
+                SPDLOG_WARN(
+                  "Module failed with 'unexpect end'. Retrying from S3.");
+                // Continue to the next iteration to retry
+                continue;
+            } else {
+                // On any other error, or if the retry fails, throw.
+                SPDLOG_ERROR("Failed to load WAMR module (attempt {}/2): \n{}",
+                             i + 1,
+                             errorMsg);
+                throw std::runtime_error("Failed to load WAMR module");
+            }
         }
     }
 
@@ -189,11 +235,11 @@ void WAMRWasmModule::doBindToFunction(faabric::Message& msg, bool cache)
 void WAMRWasmModule::bindInternal(faabric::Message& msg)
 {
     // Prepare the filesystem
-    if (!filesystemPrepared){
+    if (!filesystemPrepared) {
         filesystem.prepareFilesystem();
         filesystemPrepared = true;
     }
-    
+
     // RAII-handle around WAMR's thread environment
     WAMRThreadEnv threadEnv;
 
@@ -328,10 +374,12 @@ int32_t WAMRWasmModule::executeBatchFunction(faabric::BatchExecuteRequest& req)
 
     if (req.messages(0).funcptr() > 0) {
         SPDLOG_ERROR("Function pointers not supported in batch mode");
-        throw std::runtime_error("Function pointers not supported in batch mode");
+        throw std::runtime_error(
+          "Function pointers not supported in batch mode");
     } else {
-        // We use the first message to gain argc and argv. But it shouldn't be right. 
-        // We should limit the cmdline be empty and the Argc and Argv are empty.
+        // We use the first message to gain argc and argv. But it shouldn't be
+        // right. We should limit the cmdline be empty and the Argc and Argv are
+        // empty.
         prepareArgcArgv(req.messages(0));
 
         // Run the main function
@@ -344,11 +392,11 @@ int32_t WAMRWasmModule::executeBatchFunction(faabric::BatchExecuteRequest& req)
         returnValue = wasm_runtime_get_wasi_ctx(moduleInstance)->exit_code;
     }
 
-    // Record the return value. It is also recorded by the WasmModule::executeBatchTask.
+    // Record the return value. It is also recorded by the
+    // WasmModule::executeBatchTask.
     for (int i = 0; i < req.messages_size(); i++) {
         req.mutable_messages(i)->set_returnvalue(returnValue);
-    } 
-    
+    }
 
     return returnValue;
 }

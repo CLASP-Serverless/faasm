@@ -378,7 +378,7 @@ def bump_up(ctx, part, version):
     Bumps the version for a specific component of the project.
 
     Example usage:
-        invoke bump_up --part=planner --version=1.2.3
+        invoke bump-up --part=planner --version=0.1.4
     """
     print(f" Starting version bump for '{part}' to version '{version}'...")
 
@@ -452,7 +452,7 @@ def tag_up(ctx, planner_version, worker_version):
     Commits, tags, and pushes version bumps for planner and worker.
 
     Example usage:
-        invoke tag_up --planner-version=1.2.3 --worker-version=4.5.6
+        invoke tag-up --planner-version=0.1.4 --worker-version=0.1.4
     """
     print("\nProcessing faabric (planner)...")
     with ctx.cd('./faabric'):
@@ -479,3 +479,60 @@ def tag_up(ctx, planner_version, worker_version):
     print("Faasm (worker) tagged and pushed successfully.")
 
     print("\nAll version tagging operations complete.")
+
+@task
+def build_push_images(ctx, planner_version, worker_version):
+    """
+    Builds, tags, and pushes the planner, base, and worker docker images.
+
+    Example usage:
+        invoke build-push-images --planner-version=0.1.4 --worker-version=0.1.4
+    """
+    # --- 1. Build and push faabric/planner ---
+    print(f"\nBuilding and pushing planner:v{planner_version}...")
+    with ctx.cd('./faabric'):
+        # Build
+        ctx.run(
+            "docker build --no-cache -f docker/planner.dockerfile "
+            f'--build-arg FAABRIC_VERSION="{planner_version}" '
+            "-t planner ."
+        )
+        # Tag
+        ctx.run(f"docker tag planner tqiunimelb/planner:{planner_version}")
+        # Push
+        ctx.run(f"docker push tqiunimelb/planner:{planner_version}")
+    print(f"Planner image tqiunimelb/planner:{planner_version} pushed successfully.")
+
+    # --- 2. Build and push faasm/base ---
+    # This is built from the root directory
+    print(f"\nBuilding and pushing base:v{worker_version}...")
+    # Build
+    ctx.run(
+        "docker build --no-cache -f docker/base.dockerfile "
+        f'--build-arg FAASM_VERSION="{worker_version}" '
+        "-t base ."
+    )
+    # Tag
+    ctx.run(f"docker tag base tqiunimelb/base:{worker_version}")
+    # Push
+    ctx.run(f"docker push tqiunimelb/base:{worker_version}")
+    print(f"Base image tqiunimelb/base:{worker_version} pushed successfully.")
+
+    # --- 3. Build and push faasm/worker ---
+    # This is also built from the root directory
+    print(f"\nBuilding and pushing worker:v{worker_version}...")
+    # Build
+    ctx.run(
+        "docker build --no-cache -f docker/worker.dockerfile "
+        f'--build-arg FAASM_VERSION="{worker_version}" '
+        '--build-arg FAASM_SGX_MODE="Disabled" '
+        "-t worker ."
+    )
+    # Tag
+    ctx.run(f"docker tag worker tqiunimelb/worker:{worker_version}")
+    # Push
+    ctx.run(f"docker push tqiunimelb/worker:{worker_version}")
+    print(f"Worker image tqiunimelb/worker:{worker_version} pushed successfully.")
+
+    print("\nAll docker images built and pushed.")
+
