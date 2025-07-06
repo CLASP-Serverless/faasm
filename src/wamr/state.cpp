@@ -120,25 +120,25 @@ static void __faasm_push_state_wrapper(wasm_exec_env_t exec_env, char* key)
  * it, then return a pointer to the new memory. if lock == 0, don't lock. if
  * lock == 1, lock it.
  */
-static int32_t __faasm_read_function_state_size_wrapper(
-  wasm_exec_env_t exec_env,
-  int32_t lock)
-{
-    GET_USER_FUNC_PAR();
-    bool dataLock = lock == 1;
-    SPDLOG_DEBUG(
-      "S - faasm_read_function_state_size - {}/{}-{} and and lock is {}",
-      user,
-      func,
-      parallelismId,
-      dataLock ? "true" : "false");
-    // Get the Size of this Function State at first. If it is not created,
-    // return nullptr.
-    faabric::state::State& state = faabric::state::getGlobalState();
-    int32_t stateSize =
-      state.getFunctionStateSize(user, func, parallelismId, dataLock);
-    return stateSize;
-}
+// static int32_t __faasm_read_function_state_size_wrapper(
+//   wasm_exec_env_t exec_env,
+//   int32_t lock)
+// {
+//     GET_USER_FUNC_PAR();
+//     bool dataLock = lock == 1;
+//     SPDLOG_DEBUG(
+//       "S - faasm_read_function_state_size - {}/{}-{} and and lock is {}",
+//       user,
+//       func,
+//       parallelismId,
+//       dataLock ? "true" : "false");
+//     // Get the Size of this Function State at first. If it is not created,
+//     // return nullptr.
+//     faabric::state::State& state = faabric::state::getGlobalState();
+//     int32_t stateSize =
+//       state.getFunctionStateSize(user, func, parallelismId, dataLock);
+//     return stateSize;
+// }
 
 /**
  * Read state for the given key into the buffer provided.
@@ -149,22 +149,22 @@ static int32_t __faasm_read_function_state_size_wrapper(
  * If not registered, return 0. If registered remote don't have, delete the
  * Redis key and return 0.
  */
-static int32_t __faasm_read_function_state_wrapper(wasm_exec_env_t exec_env,
-                                                   char* buffer,
-                                                   int32_t bufferLen)
-{
-    GET_USER_FUNC_PAR();
-    SPDLOG_DEBUG(
-      "S - faasm_read_function_state - {}/{}-{}", user, func, parallelismId);
-    // If the size is 0, it means the function state is not initialized.
-    if (bufferLen == 0) {
-        return 0;
-    }
-    // If the size is not 0, which means the function state is already created.
-    int size = faabric::state::getGlobalState().readFuncState(
-      user, func, parallelismId, buffer);
-    return size;
-}
+// static int32_t __faasm_read_function_state_wrapper(wasm_exec_env_t exec_env,
+//                                                    char* buffer,
+//                                                    int32_t bufferLen)
+// {
+//     GET_USER_FUNC_PAR();
+//     SPDLOG_DEBUG(
+//       "S - faasm_read_function_state - {}/{}-{}", user, func, parallelismId);
+//     // If the size is 0, it means the function state is not initialized.
+//     if (bufferLen == 0) {
+//         return 0;
+//     }
+//     // If the size is not 0, which means the function state is already created.
+//     int size = faabric::state::getGlobalState().readFuncState(
+//       user, func, parallelismId, buffer);
+//     return size;
+// }
 
 static int32_t __faasm_read_function_state_lock_ptr_wrapper(
   wasm_exec_env_t exec_env,
@@ -284,58 +284,58 @@ std::set<std::string> splitStringToSet(const std::string& str,
     return resultSet;
 }
 
-static int32_t __faasm_read_indiv_function_state_size_lock_wrapper(
-  wasm_exec_env_t exec_env,
-  const char* inputKeys,
-  char* lockedKeys)
-{
-    GET_USER_FUNC_PAR();
+// static int32_t __faasm_read_indiv_function_state_size_lock_wrapper(
+//   wasm_exec_env_t exec_env,
+//   const char* inputKeys,
+//   char* lockedKeys)
+// {
+//     GET_USER_FUNC_PAR();
 
-    faabric::state::State& state = faabric::state::getGlobalState();
+//     faabric::state::State& state = faabric::state::getGlobalState();
 
-    std::string inputStr(inputKeys);
+//     std::string inputStr(inputKeys);
 
-    // Lock first, then read size.
-    std::string delimiter = "|";
-    std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
+//     // Lock first, then read size.
+//     std::string delimiter = "|";
+//     std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
 
-    int acquireTimes = ExecutorContext::get()->incrementLockAcquireTimes();
+//     int acquireTimes = ExecutorContext::get()->incrementLockAcquireTimes();
 
-    SPDLOG_DEBUG("S - faasm_read_indiv_function_state_size_lock - {}/{}-{} "
-                 "inputKeys {} - {} times",
-                 user,
-                 func,
-                 parallelismId,
-                 inputKeys,
-                 acquireTimes);
+//     SPDLOG_DEBUG("S - faasm_read_indiv_function_state_size_lock - {}/{}-{} "
+//                  "inputKeys {} - {} times",
+//                  user,
+//                  func,
+//                  parallelismId,
+//                  inputKeys,
+//                  acquireTimes);
 
-    auto size =
-      state.getIndivFuncStateSizeLock(user,
-                                      func,
-                                      parallelismId,
-                                      reinterpret_cast<uint8_t*>(lockedKeys),
-                                      inputKeysSet,
-                                      acquireTimes);
-    return size;
-}
+//     auto size =
+//       state.getIndivFuncStateSizeLock(user,
+//                                       func,
+//                                       parallelismId,
+//                                       reinterpret_cast<uint8_t*>(lockedKeys),
+//                                       inputKeysSet,
+//                                       acquireTimes);
+//     return size;
+// }
 
-static long __faasm_read_indiv_function_state_wrapper(wasm_exec_env_t exec_env,
-                                                      char* buffer,
-                                                      int32_t bufferLen,
-                                                      char* inputKeys)
-{
-    GET_USER_FUNC_PAR();
+// static long __faasm_read_indiv_function_state_wrapper(wasm_exec_env_t exec_env,
+//                                                       char* buffer,
+//                                                       int32_t bufferLen,
+//                                                       char* inputKeys)
+// {
+//     GET_USER_FUNC_PAR();
 
-    faabric::state::State& state = faabric::state::getGlobalState();
-    // Split input keys from string into set
-    std::string inputStr(inputKeys);
-    // Lock first, then read size.
-    std::string delimiter = "|";
-    std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
-    state.readIndivFuncState(
-      user, func, parallelismId, buffer, bufferLen, inputKeysSet);
-    return 0;
-}
+//     faabric::state::State& state = faabric::state::getGlobalState();
+//     // Split input keys from string into set
+//     std::string inputStr(inputKeys);
+//     // Lock first, then read size.
+//     std::string delimiter = "|";
+//     std::set<std::string> inputKeysSet = splitStringToSet(inputStr, delimiter);
+//     state.readIndivFuncState(
+//       user, func, parallelismId, buffer, bufferLen, inputKeysSet);
+//     return 0;
+// }
 
 static int32_t __faasm_read_indiv_function_state_ptr_wrapper(
   wasm_exec_env_t exec_env,
@@ -441,13 +441,11 @@ static NativeSymbol ns[] = {
     REG_NATIVE_FUNC(__faasm_write_state, "($$i)"),
     REG_NATIVE_FUNC(__faasm_push_state, "($)"),
     // The following functions are designed for Function State
-    REG_NATIVE_FUNC(__faasm_read_function_state_size, "(i)i"),
-    REG_NATIVE_FUNC(__faasm_read_function_state, "($i)i"),
+    // REG_NATIVE_FUNC(__faasm_read_function_state_size, "(i)i"),
+    // REG_NATIVE_FUNC(__faasm_read_function_state, "($i)i"),
     REG_NATIVE_FUNC(__faasm_read_function_state_lock_ptr, "(i)i"),
     REG_NATIVE_FUNC(__faasm_write_function_state, "($i)"),
     REG_NATIVE_FUNC(__faasm_write_function_state_unlock, "($i)"),
-    REG_NATIVE_FUNC(__faasm_read_indiv_function_state_size_lock, "($$)i"),
-    REG_NATIVE_FUNC(__faasm_read_indiv_function_state, "($i$)i"),
     REG_NATIVE_FUNC(__faasm_read_indiv_function_state_ptr, "($)i"),
     REG_NATIVE_FUNC(__faasm_write_indiv_function_state_unlock, "($i)"),
     // The following functions are designed for Persistent State

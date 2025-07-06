@@ -378,7 +378,8 @@ def bump_up(ctx, part, version):
     Bumps the version for a specific component of the project.
 
     Example usage:
-        invoke bump-up --part=planner --version=0.1.4
+        invoke git.bump-up --part=planner --version=0.1.5
+        invoke git.bump-up --part=worker --version=0.1.5
     """
     print(f" Starting version bump for '{part}' to version '{version}'...")
 
@@ -452,7 +453,7 @@ def tag_up(ctx, planner_version, worker_version):
     Commits, tags, and pushes version bumps for planner and worker.
 
     Example usage:
-        invoke tag-up --planner-version=0.1.4 --worker-version=0.1.4
+        invoke git.tag-up --planner-version=0.1.5 --worker-version=0.1.5
     """
     print("\nProcessing faabric (planner)...")
     with ctx.cd('./faabric'):
