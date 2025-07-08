@@ -234,7 +234,8 @@ void WAMRWasmModule::doBindToFunction(faabric::Message& msg, bool cache)
 
 void WAMRWasmModule::bindInternal(faabric::Message& msg)
 {
-    // Prepare the filesystem
+    // Prepare the filesystem. TODO - The opened files are never closed, which
+    // can cause leaks.
     if (!filesystemPrepared) {
         filesystem.prepareFilesystem();
         filesystemPrepared = true;
