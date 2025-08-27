@@ -1,0 +1,14 @@
+[requires]
+catch2/2.13.9#17ac9b0b78c63353e304c5744e862a77
+cpprestsdk/2.10.19@#82aa3736e77e09f0320087772280606a
+cppcodec/0.2@#2970c3267aebdc3ceec3e3ef20786564
+jwt-cpp/0.7.0@#8866e2b13d06704e8d1b48e15a384639
+picojson/cci.20210117@#5222abc0ebb33013a382941847cb53a9
+rapidjson/cci.20211112@#0e610cba48da9ecd145a5f74afbe1607
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[options]
+cpprestsdk/*:with_websockets=False
