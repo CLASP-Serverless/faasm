@@ -1,4 +1,4 @@
-FROM tqiunimelb/faabric-base:0.0.1
+FROM tqiunimelb/faabric-base:0.0.2
 
 # Install Faasm-specific APT dependencies
 RUN apt update \
