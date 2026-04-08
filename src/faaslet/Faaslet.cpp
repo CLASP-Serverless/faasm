@@ -135,6 +135,8 @@ void Faaslet::shutdown()
         returnNetworkNamespace(ns);
     }
 
+    storage::getFileLoader().cleanupStaleTmpFiles();
+
     Executor::shutdown();
 }
 
