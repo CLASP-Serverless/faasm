@@ -212,6 +212,8 @@ std::vector<uint8_t> FileLoader::loadFileBytes(
         std::string tmpPath =
           localCachePath + ".tmp." + std::to_string(gettid());
         try {
+            std::filesystem::create_directories(
+              std::filesystem::path(localCachePath).parent_path());
             writeBytesToFile(tmpPath, bytes);
             std::filesystem::rename(tmpPath, localCachePath);
         } catch (...) {
