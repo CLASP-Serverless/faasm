@@ -216,6 +216,12 @@ std::vector<uint8_t> FileLoader::loadFileBytes(
               std::filesystem::path(localCachePath).parent_path());
             writeBytesToFile(tmpPath, bytes);
             std::filesystem::rename(tmpPath, localCachePath);
+        } catch (const std::filesystem::filesystem_error&) {
+            std::filesystem::remove(tmpPath);
+            // Another thread may have already placed the file; if so, we're done
+            if (!std::filesystem::exists(localCachePath)) {
+                throw;
+            }
         } catch (...) {
             std::filesystem::remove(tmpPath);
             throw;
